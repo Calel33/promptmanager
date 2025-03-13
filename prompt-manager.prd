@@ -1,0 +1,185 @@
+Prompt Manager - Developer PRD
+Version: 1.0
+Last Updated: [Insert Date]
+Backend: Supabase
+
+Overview
+The Prompt Manager is a tool designed to help developers and teams manage, version, and organize prompts for AI models (e.g., GPT, Claude). It will allow users to create, store, update, and retrieve prompts efficiently. Supabase will serve as the backend, providing authentication, database, and storage capabilities.
+
+Goals
+Provide a centralized system for managing prompts.
+
+Enable versioning and history tracking for prompts.
+
+Support collaboration through user roles and permissions.
+
+Ensure scalability and security using Supabase.
+
+Offer a simple, intuitive API for integration with other tools.
+
+Key Features
+1. Prompt Management
+Create Prompts: Users can create new prompts with metadata (e.g., name, description, tags).
+
+Update Prompts: Users can edit and update prompts.
+
+Delete Prompts: Users can delete prompts (soft delete preferred).
+
+Versioning: Each prompt change creates a new version, preserving history.
+
+2. Prompt Organization
+Tags: Add tags to prompts for categorization (e.g., "marketing", "code-generation").
+
+Search: Search prompts by name, tags, or content.
+
+Filtering: Filter prompts by tags, date, or user.
+
+3. Collaboration
+User Roles:
+
+Admin: Full access (create, update, delete).
+
+Editor: Can create and update prompts.
+
+Viewer: Read-only access.
+
+Teams: Group users into teams with shared prompts.
+
+4. API Integration
+REST API: Expose endpoints for CRUD operations on prompts.
+
+Webhooks: Trigger webhooks on prompt updates or deletions.
+
+5. Analytics
+Usage Tracking: Track how often prompts are retrieved or used.
+
+Audit Logs: Log all changes to prompts (who, what, when).
+
+Technical Requirements
+Backend (Supabase)
+Database Schema:
+
+Prompts Table:
+
+id (UUID, primary key)
+
+name (string)
+
+content (text)
+
+tags (array of strings)
+
+created_by (UUID, foreign key to users)
+
+created_at (timestamp)
+
+updated_at (timestamp)
+
+version (integer)
+
+Prompt Versions Table:
+
+id (UUID, primary key)
+
+prompt_id (UUID, foreign key to prompts)
+
+content (text)
+
+created_at (timestamp)
+
+Users Table:
+
+Use Supabase Auth's built-in users table.
+
+Teams Table:
+
+id (UUID, primary key)
+
+name (string)
+
+created_by (UUID, foreign key to users)
+
+Team Members Table:
+
+team_id (UUID, foreign key to teams)
+
+user_id (UUID, foreign key to users)
+
+role (enum: admin, editor, viewer)
+
+Authentication:
+
+Use Supabase Auth for user sign-up, login, and role management.
+
+Storage:
+
+Use Supabase Storage for large prompt attachments (e.g., images, files).
+
+API:
+
+Use Supabase's auto-generated REST API or GraphQL for CRUD operations.
+
+Frontend (Optional)
+If a frontend is required:
+
+Framework: React, Next.js, or Vue.js.
+
+UI Components:
+
+Prompt creation/editing form.
+
+Prompt list with search/filter.
+
+Version history viewer.
+
+Team management dashboard.
+
+API Endpoints
+Prompts
+
+GET /prompts: List all prompts (filter by tags, user, etc.).
+
+GET /prompts/:id: Get a specific prompt.
+
+POST /prompts: Create a new prompt.
+
+PUT /prompts/:id: Update a prompt.
+
+DELETE /prompts/:id: Delete a prompt.
+
+Versions
+
+GET /prompts/:id/versions: List all versions of a prompt.
+
+GET /prompts/:id/versions/:version_id: Get a specific version.
+
+Teams
+
+GET /teams: List all teams.
+
+POST /teams: Create a new team.
+
+PUT /teams/:id: Update team details.
+
+DELETE /teams/:id: Delete a team.
+
+Auth
+
+Use Supabase Auth endpoints for login, sign-up, and role management.
+
+Security
+Authentication: Supabase Auth with JWT.
+
+Authorization: Role-based access control (RBAC).
+
+Data Validation: Validate all inputs to prevent SQL injection or malicious data.
+
+Rate Limiting: Implement rate limiting on API endpoints.
+
+Scalability
+Database: Use Supabase's PostgreSQL scaling options.
+
+Storage: Use Supabase Storage for large files.
+
+Caching: Implement caching for frequently accessed prompts.
+
