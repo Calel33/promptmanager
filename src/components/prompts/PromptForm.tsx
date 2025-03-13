@@ -13,12 +13,57 @@ export const PromptForm: React.FC<PromptFormProps> = ({ initialData, onSubmit, i
     content: initialData?.content || '',
     tags: initialData?.tags || [],
   });
+  const [currentTag, setCurrentTag] = React.useState('');
+
+  // Reset form when initialData changes (e.g., when switching between create/edit modes)
+  React.useEffect(() => {
+    setFormData({
+      name: initialData?.name || '',
+      content: initialData?.content || '',
+      tags: initialData?.tags || [],
+    });
+    setCurrentTag('');
+  }, [initialData]);
+
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      content: '',
+      tags: [],
+    });
+    setCurrentTag('');
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await onSubmit(formData);
+      // Only reset if we're not in edit mode (initialData is undefined)
+      if (!initialData) {
+        resetForm();
+      }
+    } catch (error) {
+      // If there's an error, we keep the form data to allow the user to fix it
+      console.error('Error submitting form:', error);
+    }
+  };
+
+  const handleTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const trimmedTag = currentTag.trim();
+      if (trimmedTag && !formData.tags.includes(trimmedTag)) {
+        setFormData(prev => ({
+          ...prev,
+          tags: [...prev.tags, trimmedTag]
+        }));
+        setCurrentTag('');
+      }
+    }
+  };
 
   return (
-    <form onSubmit={async (e) => {
-      e.preventDefault();
-      await onSubmit(formData);
-    }}>
+    <form onSubmit={handleSubmit}>
       <div className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-gray-700">
@@ -30,6 +75,7 @@ export const PromptForm: React.FC<PromptFormProps> = ({ initialData, onSubmit, i
             onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
             className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
             required
+            disabled={isLoading}
           />
         </div>
 
@@ -43,22 +89,37 @@ export const PromptForm: React.FC<PromptFormProps> = ({ initialData, onSubmit, i
             rows={4}
             className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
             required
+            disabled={isLoading}
           />
         </div>
 
         <div>
           <label className="block text-sm font-medium text-gray-700">
-            Tags (comma separated)
+            Tags (press Enter to add)
           </label>
-          <input
-            type="text"
-            value={formData.tags.join(', ')}
-            onChange={(e) => setFormData(prev => ({ 
-              ...prev, 
-              tags: e.target.value.split(',').map(tag => tag.trim()).filter(Boolean)
-            }))}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-          />
+          <div className="mt-1">
+            <input
+              type="text"
+              value={currentTag}
+              onChange={(e) => setCurrentTag(e.target.value)}
+              onKeyDown={handleTagKeyDown}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+              placeholder="Type tag and press Enter to add"
+              disabled={isLoading}
+            />
+            {formData.tags.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {formData.tags.map((tag, index) => (
+                  <span
+                    key={index}
+                    className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         <button

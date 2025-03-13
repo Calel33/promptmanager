@@ -115,7 +115,7 @@ export default function Login() {
             </button>
           </div>
 
-          <div className="text-sm text-center">
+          <div className="flex flex-col space-y-2 text-sm text-center">
             <button
               type="button"
               onClick={() => setIsSignUp(!isSignUp)}
@@ -126,6 +126,14 @@ export default function Login() {
                 ? 'Already have an account? Sign in'
                 : "Don't have an account? Sign up"}
             </button>
+            {!isSignUp && (
+              <a
+                href="/auth/reset-password"
+                className="font-medium text-indigo-600 hover:text-indigo-500"
+              >
+                Forgot your password?
+              </a>
+            )}
           </div>
         </form>
       </div>

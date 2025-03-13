@@ -12,7 +12,6 @@ export default function PromptsPage() {
   const [prompts, setPrompts] = React.useState<Prompt[]>([]);
   const [isLoading, setIsLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
-  const [editingPrompt, setEditingPrompt] = React.useState<Prompt | null>(null);
 
   const loadPrompts = async (search?: string, tags?: string[]) => {
     setIsLoading(true);
@@ -51,13 +50,12 @@ export default function PromptsPage() {
         created_by: user.id
       };
 
-      if (editingPrompt) {
-        await promptsApi.update(editingPrompt.id, data);
+      if (data.id) {
+        await promptsApi.update(data.id, data);
       } else {
         await promptsApi.create(promptData);
       }
       await loadPrompts();
-      setEditingPrompt(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save prompt');
     } finally {
@@ -104,19 +102,6 @@ export default function PromptsPage() {
             )}
 
             <div>
-              <h2 className="text-lg font-medium text-gray-900">
-                {editingPrompt ? 'Edit Prompt' : 'Create New Prompt'}
-              </h2>
-              <div className="mt-5">
-                <PromptForm
-                  initialData={editingPrompt || undefined}
-                  onSubmit={handleSubmit}
-                  isLoading={isLoading}
-                />
-              </div>
-            </div>
-
-            <div className="border-t border-gray-200 pt-8">
               <h2 className="text-lg font-medium text-gray-900">Search Prompts</h2>
               <div className="mt-5">
                 <PromptSearch
@@ -128,12 +113,25 @@ export default function PromptsPage() {
             </div>
 
             <div className="border-t border-gray-200 pt-8">
+              <h2 className="text-lg font-medium text-gray-900">
+                Create New Prompt
+              </h2>
+              <div className="mt-5">
+                <PromptForm
+                  onSubmit={handleSubmit}
+                  isLoading={isLoading}
+                />
+              </div>
+            </div>
+
+            <div className="border-t border-gray-200 pt-8">
               <h2 className="text-lg font-medium text-gray-900">Your Prompts</h2>
               <div className="mt-5">
                 <PromptList
                   prompts={prompts}
-                  onEdit={setEditingPrompt}
+                  onEdit={() => {}}
                   onDelete={handleDelete}
+                  onSubmit={handleSubmit}
                   isLoading={isLoading}
                 />
               </div>
