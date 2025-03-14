@@ -6,7 +6,6 @@ export interface Prompt {
   created_by: string;
   created_at: string;
   updated_at: string;
-  version: number;
   is_deleted: boolean;
 }
 

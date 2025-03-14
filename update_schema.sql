@@ -1,0 +1,1 @@
+ALTER TABLE prompts DROP COLUMN IF EXISTS version; DROP TABLE IF EXISTS prompt_versions;
