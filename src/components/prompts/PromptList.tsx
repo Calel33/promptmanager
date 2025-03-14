@@ -55,14 +55,14 @@ export const PromptList: React.FC<PromptListProps> = ({ prompts, onEdit, onDelet
   };
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4 auto-rows-fr">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4">
       {prompts.map((prompt) => (
         <div 
           key={prompt.id}
-          className="bg-[#1C2333]/30 backdrop-blur-sm rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 flex flex-col"
+          className="bg-[#1C2333]/30 backdrop-blur-sm rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 flex flex-col h-fit"
         >
           {editingId === prompt.id ? (
-            <div className="p-4 flex flex-col flex-1">
+            <div className="p-4 flex flex-col">
               <PromptForm
                 initialData={prompt}
                 onSubmit={handleSubmit}
@@ -78,7 +78,7 @@ export const PromptList: React.FC<PromptListProps> = ({ prompts, onEdit, onDelet
               </div>
             </div>
           ) : (
-            <div className="p-4 flex flex-col flex-1">
+            <div className="p-4 flex flex-col h-full">
               <div className="flex-1">
                 <h3 className="text-lg font-medium text-white mb-2">{prompt.name}</h3>
                 <p className="text-gray-400 text-sm mb-4 line-clamp-3">{prompt.content}</p>

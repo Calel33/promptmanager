@@ -72,11 +72,26 @@ export default function PromptsPage() {
           tags: data.tags || []
         });
       } else {
-        await promptsApi.create(promptData);
+        try {
+          await promptsApi.create(promptData);
+        } catch (createError) {
+          console.error('Prompt creation error:', createError);
+          if (createError instanceof Error) {
+            if (createError.message.includes('Not authenticated')) {
+              throw new Error('Your session has expired. Please log in again.');
+            } else if (createError.message.includes('Invalid user ID')) {
+              throw new Error('There was an issue with your user session. Please try logging out and back in.');
+            }
+            throw createError;
+          }
+          throw new Error('An unexpected error occurred while saving the prompt');
+        }
       }
       
       await loadPrompts();
+      setShowCreateForm(false);
     } catch (err) {
+      console.error('Form submission error:', err);
       setError(err instanceof Error ? err.message : 'Failed to save prompt');
     } finally {
       setIsLoading(false);

@@ -9,6 +9,7 @@ interface PromptFormProps {
 
 export const PromptForm: React.FC<PromptFormProps> = ({ initialData, onSubmit, isLoading }) => {
   const [formData, setFormData] = React.useState({
+    id: initialData?.id || undefined,
     name: initialData?.name || '',
     content: initialData?.content || '',
     tags: initialData?.tags || [],
@@ -18,6 +19,7 @@ export const PromptForm: React.FC<PromptFormProps> = ({ initialData, onSubmit, i
   // Reset form when initialData changes (e.g., when switching between create/edit modes)
   React.useEffect(() => {
     setFormData({
+      id: initialData?.id || undefined,
       name: initialData?.name || '',
       content: initialData?.content || '',
       tags: initialData?.tags || [],
@@ -27,6 +29,7 @@ export const PromptForm: React.FC<PromptFormProps> = ({ initialData, onSubmit, i
 
   const resetForm = () => {
     setFormData({
+      id: undefined,
       name: '',
       content: '',
       tags: [],
@@ -62,11 +65,18 @@ export const PromptForm: React.FC<PromptFormProps> = ({ initialData, onSubmit, i
     }
   };
 
+  const handleRemoveTag = (tagToRemove: string) => {
+    setFormData(prev => ({
+      ...prev,
+      tags: prev.tags.filter(tag => tag !== tagToRemove)
+    }));
+  };
+
   return (
     <form onSubmit={handleSubmit}>
       <div className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700">
+          <label className="block text-sm font-medium text-gray-300">
             Name
           </label>
           <input
@@ -112,9 +122,19 @@ export const PromptForm: React.FC<PromptFormProps> = ({ initialData, onSubmit, i
                 {formData.tags.map((tag, index) => (
                   <span
                     key={index}
-                    className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800"
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-[#6366F1]/20 text-indigo-200 group"
                   >
                     {tag}
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveTag(tag)}
+                      className="text-indigo-200 hover:text-white transition-colors rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                      disabled={isLoading}
+                    >
+                      <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
                   </span>
                 ))}
               </div>
@@ -125,7 +145,7 @@ export const PromptForm: React.FC<PromptFormProps> = ({ initialData, onSubmit, i
         <button
           type="submit"
           disabled={isLoading}
-          className="inline-flex items-center justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50"
+          className="inline-flex items-center justify-center rounded-md border border-transparent bg-[#6366F1] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 transition-colors"
         >
           {isLoading ? (
             <>
