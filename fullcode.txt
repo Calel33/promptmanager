@@ -1,0 +1,1001 @@
+next-env.d.ts:
+<code>
+/// <reference types="next" />
+/// <reference types="next/image-types/global" />
+
+// NOTE: This file should not be edited
+// see https://nextjs.org/docs/pages/building-your-application/configuring/typescript for more information.
+
+</code>
+
+package.json:
+<code>
+{
+  "name": "prompt-manager",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0",
+    "next": "^14.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "autoprefixer": "^10.4.0",
+    "postcss": "^8.4.0",
+    "tailwindcss": "^3.3.0",
+    "typescript": "^5.0.0"
+  }
+} 
+</code>
+
+postcss.config.js:
+<code>
+module.exports = {
+  plugins: {
+    tailwindcss: {},
+    autoprefixer: {},
+  },
+} 
+</code>
+
+tailwind.config.js:
+<code>
+module.exports = {
+  content: [
+    './src/pages/**/*.{js,ts,jsx,tsx}',
+    './src/components/**/*.{js,ts,jsx,tsx}',
+  ],
+  theme: {
+    extend: {},
+  },
+  plugins: [],
+} 
+</code>
+
+tsconfig.json:
+<code>
+{
+  "compilerOptions": {
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": false,
+    "noEmit": true,
+    "incremental": true,
+    "module": "esnext",
+    "esModuleInterop": true,
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve"
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}
+
+</code>
+
+database\indexes.sql:
+<code>
+-- Indexes for prompts
+CREATE INDEX idx_prompts_tags ON prompts USING GIN (tags);
+CREATE INDEX idx_prompts_created_by ON prompts (created_by);
+CREATE INDEX idx_prompts_name ON prompts (name);
+
+-- Indexes for prompt_versions
+CREATE INDEX idx_prompt_versions_prompt_id ON prompt_versions (prompt_id);
+
+-- Indexes for team_members
+CREATE INDEX idx_team_members_user_id ON team_members (user_id);
+CREATE INDEX idx_team_members_team_id ON team_members (team_id); 
+</code>
+
+database\policies.sql:
+<code>
+-- Enable Row Level Security
+ALTER TABLE prompts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE prompt_versions ENABLE ROW LEVEL SECURITY;
+
+-- Prompts Policies
+CREATE POLICY "Users can view their own prompts"
+  ON prompts FOR SELECT
+  USING (auth.uid() = created_by);
+
+CREATE POLICY "Users can insert their own prompts"
+  ON prompts FOR INSERT
+  WITH CHECK (auth.uid() = created_by);
+
+CREATE POLICY "Users can update their own prompts"
+  ON prompts FOR UPDATE
+  USING (auth.uid() = created_by)
+  WITH CHECK (auth.uid() = created_by);
+
+-- Prompt Versions Policies
+CREATE POLICY "Users can view their own prompt versions"
+  ON prompt_versions FOR SELECT
+  USING (auth.uid() = created_by); 
+</code>
+
+database\schema.sql:
+<code>
+-- Enable UUID extension
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- Drop existing tables and functions if they exist
+DROP TRIGGER IF EXISTS version_prompt_changes ON prompts;
+DROP TRIGGER IF EXISTS update_prompts_updated_at ON prompts;
+DROP FUNCTION IF EXISTS create_prompt_version();
+DROP FUNCTION IF EXISTS update_updated_at();
+DROP TABLE IF EXISTS prompt_versions;
+DROP TABLE IF EXISTS prompts;
+
+-- Prompts Table
+CREATE TABLE prompts (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  name VARCHAR NOT NULL,
+  content TEXT NOT NULL,
+  tags TEXT[],
+  created_by UUID REFERENCES auth.users(id),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()),
+  version INTEGER DEFAULT 1,
+  is_deleted BOOLEAN DEFAULT FALSE
+);
+
+-- Prompt Versions Table
+CREATE TABLE prompt_versions (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  prompt_id UUID REFERENCES prompts(id),
+  content TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()),
+  created_by UUID REFERENCES auth.users(id)
+);
+
+-- Enable Row Level Security
+ALTER TABLE prompts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE prompt_versions ENABLE ROW LEVEL SECURITY;
+
+-- Drop existing policies if they exist
+DROP POLICY IF EXISTS "Users can view their own prompts" ON prompts;
+DROP POLICY IF EXISTS "Users can create their own prompts" ON prompts;
+DROP POLICY IF EXISTS "Users can update their own prompts" ON prompts;
+DROP POLICY IF EXISTS "Users can delete their own prompts" ON prompts;
+DROP POLICY IF EXISTS "Users can view versions of their own prompts" ON prompt_versions;
+
+-- Policies for prompts table
+CREATE POLICY "Users can view their own prompts"
+  ON prompts
+  FOR SELECT
+  USING (auth.uid() = created_by);
+
+CREATE POLICY "Users can create their own prompts"
+  ON prompts
+  FOR INSERT
+  WITH CHECK (auth.uid() = created_by);
+
+CREATE POLICY "Users can update their own prompts"
+  ON prompts
+  FOR UPDATE
+  USING (auth.uid() = created_by)
+  WITH CHECK (auth.uid() = created_by);
+
+CREATE POLICY "Users can delete their own prompts"
+  ON prompts
+  FOR DELETE
+  USING (auth.uid() = created_by);
+
+-- Policies for prompt_versions table
+CREATE POLICY "Users can view versions of their own prompts"
+  ON prompt_versions
+  FOR SELECT
+  USING (
+    auth.uid() = created_by
+    OR
+    auth.uid() IN (
+      SELECT created_by 
+      FROM prompts 
+      WHERE id = prompt_versions.prompt_id
+    )
+  );
+
+-- Triggers
+CREATE OR REPLACE FUNCTION update_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = TIMEZONE('utc'::text, NOW());
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER update_prompts_updated_at
+  BEFORE UPDATE ON prompts
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at();
+
+CREATE OR REPLACE FUNCTION create_prompt_version()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF (TG_OP = 'UPDATE' AND OLD.content != NEW.content) THEN
+    INSERT INTO prompt_versions (prompt_id, content, created_by)
+    VALUES (NEW.id, OLD.content, OLD.created_by);
+    NEW.version = OLD.version + 1;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER version_prompt_changes
+  BEFORE UPDATE ON prompts
+  FOR EACH ROW
+  EXECUTE FUNCTION create_prompt_version();
+
+-- Drop existing indexes if they exist
+DROP INDEX IF EXISTS idx_prompts_created_by;
+DROP INDEX IF EXISTS idx_prompts_tags;
+DROP INDEX IF EXISTS idx_prompts_name;
+DROP INDEX IF EXISTS idx_prompt_versions_prompt_id;
+
+-- Indexes
+CREATE INDEX idx_prompts_created_by ON prompts(created_by);
+CREATE INDEX idx_prompts_tags ON prompts USING GIN (tags);
+CREATE INDEX idx_prompts_name ON prompts(name);
+CREATE INDEX idx_prompt_versions_prompt_id ON prompt_versions(prompt_id); 
+</code>
+
+database\triggers.sql:
+<code>
+-- Update timestamp trigger
+CREATE OR REPLACE FUNCTION update_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = TIMEZONE('utc'::text, NOW());
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Add trigger to prompts table
+CREATE TRIGGER update_prompts_updated_at
+  BEFORE UPDATE ON prompts
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at();
+
+-- Version control trigger
+CREATE OR REPLACE FUNCTION create_prompt_version()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF (TG_OP = 'UPDATE' AND OLD.content != NEW.content) THEN
+    INSERT INTO prompt_versions (prompt_id, content, created_by)
+    VALUES (NEW.id, OLD.content, OLD.created_by);
+    NEW.version = OLD.version + 1;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Add version control trigger to prompts table
+CREATE TRIGGER version_prompt_changes
+  BEFORE UPDATE ON prompts
+  FOR EACH ROW
+  EXECUTE FUNCTION create_prompt_version(); 
+</code>
+
+src\api\prompts.ts:
+<code>
+import { supabase } from '../lib/supabase';
+import type { Prompt } from '../types';
+
+export const promptsApi = {
+  async create(prompt: Omit<Prompt, 'id' | 'created_at' | 'updated_at' | 'version' | 'is_deleted'>) {
+    const { data, error } = await supabase
+      .from('prompts')
+      .insert([prompt])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async getById(id: string) {
+    const { data, error } = await supabase
+      .from('prompts')
+      .select('*, prompt_versions(*)')
+      .eq('id', id)
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async update(id: string, updates: Partial<Prompt>) {
+    const { data, error } = await supabase
+      .from('prompts')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async delete(id: string) {
+    const { error } = await supabase
+      .from('prompts')
+      .update({ is_deleted: true })
+      .eq('id', id);
+
+    if (error) throw error;
+  },
+
+  async list(options: { tags?: string[]; search?: string } = {}) {
+    let query = supabase
+      .from('prompts')
+      .select('*')
+      .eq('is_deleted', false);
+
+    if (options.tags?.length) {
+      query = query.contains('tags', options.tags);
+    }
+
+    if (options.search) {
+      query = query.ilike('name', `%${options.search}%`);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return data;
+  }
+}; 
+</code>
+
+src\components\auth\ProtectedRoute.tsx:
+<code>
+import { useRouter } from 'next/router';
+import { useEffect } from 'react';
+import { useAuth } from '../../contexts/AuthContext';
+import { LoadingSpinner } from '../common/LoadingSpinner';
+
+export function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push('/auth/login');
+    }
+  }, [user, loading, router]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <LoadingSpinner />
+      </div>
+    );
+  }
+
+  return user ? <>{children}</> : null;
+} 
+</code>
+
+src\components\common\LoadingSpinner.tsx:
+<code>
+import React from 'react';
+
+export const LoadingSpinner: React.FC = () => {
+  return (
+    <div className="flex justify-center items-center">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+    </div>
+  );
+}; 
+</code>
+
+src\components\layout\Layout.tsx:
+<code>
+import React from 'react';
+import { useAuth } from '../../contexts/AuthContext';
+import { ProtectedRoute } from '../auth/ProtectedRoute';
+
+interface LayoutProps {
+  children: React.ReactNode;
+}
+
+export const Layout: React.FC<LayoutProps> = ({ children }) => {
+  const { signOut } = useAuth();
+
+  return (
+    <ProtectedRoute>
+      <div className="min-h-screen bg-gray-50">
+        <nav className="bg-white shadow-sm">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between h-16">
+              <div className="flex">
+                <div className="flex-shrink-0 flex items-center">
+                  <h1 className="text-xl font-bold text-indigo-600">Prompt Manager</h1>
+                </div>
+              </div>
+              <div className="flex items-center">
+                <button
+                  onClick={signOut}
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-indigo-700 bg-indigo-100 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                >
+                  Sign Out
+                </button>
+              </div>
+            </div>
+          </div>
+        </nav>
+
+        <main className="py-10">
+          <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
+            {children}
+          </div>
+        </main>
+      </div>
+    </ProtectedRoute>
+  );
+}; 
+</code>
+
+src\components\prompts\PromptForm.tsx:
+<code>
+import React from 'react';
+import { Prompt } from '../../types';
+
+interface PromptFormProps {
+  initialData?: Partial<Prompt>;
+  onSubmit: (data: Partial<Prompt>) => Promise<void>;
+  isLoading?: boolean;
+}
+
+export const PromptForm: React.FC<PromptFormProps> = ({ initialData, onSubmit, isLoading }) => {
+  const [formData, setFormData] = React.useState({
+    name: initialData?.name || '',
+    content: initialData?.content || '',
+    tags: initialData?.tags || [],
+  });
+
+  return (
+    <form onSubmit={async (e) => {
+      e.preventDefault();
+      await onSubmit(formData);
+    }}>
+      <div className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700">
+            Name
+          </label>
+          <input
+            type="text"
+            value={formData.name}
+            onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+            required
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700">
+            Content
+          </label>
+          <textarea
+            value={formData.content}
+            onChange={(e) => setFormData(prev => ({ ...prev, content: e.target.value }))}
+            rows={4}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+            required
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700">
+            Tags (comma separated)
+          </label>
+          <input
+            type="text"
+            value={formData.tags.join(', ')}
+            onChange={(e) => setFormData(prev => ({ 
+              ...prev, 
+              tags: e.target.value.split(',').map(tag => tag.trim()).filter(Boolean)
+            }))}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+          />
+        </div>
+
+        <button
+          type="submit"
+          disabled={isLoading}
+          className="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50"
+        >
+          {isLoading ? 'Saving...' : 'Save Prompt'}
+        </button>
+      </div>
+    </form>
+  );
+}; 
+</code>
+
+src\components\prompts\PromptList.tsx:
+<code>
+import React from 'react';
+import { Prompt } from '../../types';
+import { LoadingSpinner } from '../common/LoadingSpinner';
+
+interface PromptListProps {
+  prompts: Prompt[];
+  onEdit: (prompt: Prompt) => void;
+  onDelete: (promptId: string) => Promise<void>;
+  isLoading?: boolean;
+}
+
+export const PromptList: React.FC<PromptListProps> = ({ prompts, onEdit, onDelete, isLoading }) => {
+  if (isLoading) {
+    return <LoadingSpinner />;
+  }
+
+  if (prompts.length === 0) {
+    return (
+      <div className="text-center text-gray-500 py-8">
+        No prompts found. Create your first prompt above!
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {prompts.map((prompt) => (
+        <div 
+          key={prompt.id}
+          className="border rounded-lg p-4 hover:shadow-md transition-shadow bg-white"
+        >
+          <div className="flex justify-between items-start">
+            <div>
+              <h3 className="text-lg font-medium">{prompt.name}</h3>
+              <p className="mt-1 text-sm text-gray-600">{prompt.content}</p>
+              <div className="mt-2 flex gap-2">
+                {prompt.tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => onEdit(prompt)}
+                className="text-sm text-indigo-600 hover:text-indigo-900"
+              >
+                Edit
+              </button>
+              <button
+                onClick={() => onDelete(prompt.id)}
+                className="text-sm text-red-600 hover:text-red-900"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}; 
+</code>
+
+src\components\prompts\PromptSearch.tsx:
+<code>
+import React from 'react';
+
+interface PromptSearchProps {
+  onSearch: (search: string) => void;
+  onTagFilter: (tags: string[]) => void;
+}
+
+export const PromptSearch: React.FC<PromptSearchProps> = ({ onSearch, onTagFilter }) => {
+  const [searchTerm, setSearchTerm] = React.useState('');
+  const [tags, setTags] = React.useState('');
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSearch(searchTerm);
+    onTagFilter(tags.split(',').map(tag => tag.trim()).filter(Boolean));
+  };
+
+  return (
+    <form onSubmit={handleSearch} className="space-y-4">
+      <div className="flex gap-4">
+        <div className="flex-1">
+          <input
+            type="text"
+            placeholder="Search prompts..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+          />
+        </div>
+        <div className="flex-1">
+          <input
+            type="text"
+            placeholder="Filter by tags (comma separated)"
+            value={tags}
+            onChange={(e) => setTags(e.target.value)}
+            className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+          />
+        </div>
+        <button
+          type="submit"
+          className="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+        >
+          Search
+        </button>
+      </div>
+    </form>
+  );
+}; 
+</code>
+
+src\contexts\AuthContext.tsx:
+<code>
+import { createContext, useContext, useEffect, useState } from 'react';
+import { User } from '@supabase/supabase-js';
+import { supabase } from '../lib/supabase';
+
+interface AuthContextType {
+  user: User | null;
+  loading: boolean;
+  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signUp: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signOut: () => Promise<void>;
+}
+
+const AuthContext = createContext<AuthContextType>({} as AuthContextType);
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Check active sessions and sets the user
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+
+    // Listen for changes on auth state
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const signIn = async (email: string, password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    return { error };
+  };
+
+  const signUp = async (email: string, password: string) => {
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+    });
+    return { error };
+  };
+
+  const signOut = async () => {
+    await supabase.auth.signOut();
+  };
+
+  return (
+    <AuthContext.Provider value={{ user, loading, signIn, signUp, signOut }}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export const useAuth = () => {
+  return useContext(AuthContext);
+}; 
+</code>
+
+src\lib\supabase.ts:
+<code>
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error('Missing Supabase environment variables');
+}
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey); 
+</code>
+
+src\pages\index.tsx:
+<code>
+import { useEffect } from 'react';
+import { useRouter } from 'next/router';
+
+export default function Home() {
+  const router = useRouter();
+
+  useEffect(() => {
+    router.push('/prompts');
+  }, [router]);
+
+  return null;
+} 
+</code>
+
+src\pages\_app.tsx:
+<code>
+import type { AppProps } from 'next/app';
+import { AuthProvider } from '../contexts/AuthContext';
+import '../styles/globals.css';
+
+function MyApp({ Component, pageProps }: AppProps) {
+  return (
+    <AuthProvider>
+      <Component {...pageProps} />
+    </AuthProvider>
+  );
+}
+
+export default MyApp; 
+</code>
+
+src\pages\auth\login.tsx:
+<code>
+import { useState } from 'react';
+import { useAuth } from '../../contexts/AuthContext';
+
+export default function Login() {
+  const { signIn, signUp } = useAuth();
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    const { error } = await (isSignUp ? signUp(email, password) : signIn(email, password));
+    
+    if (error) {
+      setError(error.message);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-8">
+        <div>
+          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+            {isSignUp ? 'Create an account' : 'Sign in to your account'}
+          </h2>
+        </div>
+        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+          <div className="rounded-md shadow-sm -space-y-px">
+            <div>
+              <label htmlFor="email-address" className="sr-only">
+                Email address
+              </label>
+              <input
+                id="email-address"
+                name="email"
+                type="email"
+                autoComplete="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                placeholder="Email address"
+              />
+            </div>
+            <div>
+              <label htmlFor="password" className="sr-only">
+                Password
+              </label>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                placeholder="Password"
+              />
+            </div>
+          </div>
+
+          {error && (
+            <div className="text-red-600 text-sm text-center">
+              {error}
+            </div>
+          )}
+
+          <div>
+            <button
+              type="submit"
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            >
+              {isSignUp ? 'Sign up' : 'Sign in'}
+            </button>
+          </div>
+
+          <div className="text-sm text-center">
+            <button
+              type="button"
+              onClick={() => setIsSignUp(!isSignUp)}
+              className="font-medium text-indigo-600 hover:text-indigo-500"
+            >
+              {isSignUp
+                ? 'Already have an account? Sign in'
+                : "Don't have an account? Sign up"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+} 
+</code>
+
+src\pages\prompts\index.tsx:
+<code>
+import React from 'react';
+import { promptsApi } from '../../api/prompts';
+import { Layout } from '../../components/layout/Layout';
+import { PromptForm } from '../../components/prompts/PromptForm';
+import { PromptList } from '../../components/prompts/PromptList';
+import { PromptSearch } from '../../components/prompts/PromptSearch';
+import type { Prompt } from '../../types';
+
+export default function PromptsPage() {
+  const [prompts, setPrompts] = React.useState<Prompt[]>([]);
+  const [isLoading, setIsLoading] = React.useState(false);
+  const [editingPrompt, setEditingPrompt] = React.useState<Prompt | null>(null);
+
+  const loadPrompts = async (search?: string, tags?: string[]) => {
+    const data = await promptsApi.list({ search, tags });
+    setPrompts(data);
+  };
+
+  React.useEffect(() => {
+    loadPrompts();
+  }, []);
+
+  const handleSubmit = async (data: Partial<Prompt>) => {
+    setIsLoading(true);
+    try {
+      if (editingPrompt) {
+        await promptsApi.update(editingPrompt.id, data);
+      } else {
+        await promptsApi.create(data);
+      }
+      await loadPrompts();
+      setEditingPrompt(null);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDelete = async (promptId: string) => {
+    if (window.confirm('Are you sure you want to delete this prompt?')) {
+      await promptsApi.delete(promptId);
+      await loadPrompts();
+    }
+  };
+
+  return (
+    <Layout>
+      <div className="bg-white shadow sm:rounded-lg">
+        <div className="px-4 py-5 sm:p-6">
+          <div className="space-y-8">
+            <div>
+              <h2 className="text-lg font-medium text-gray-900">
+                {editingPrompt ? 'Edit Prompt' : 'Create New Prompt'}
+              </h2>
+              <div className="mt-5">
+                <PromptForm
+                  initialData={editingPrompt || undefined}
+                  onSubmit={handleSubmit}
+                  isLoading={isLoading}
+                />
+              </div>
+            </div>
+
+            <div className="border-t border-gray-200 pt-8">
+              <h2 className="text-lg font-medium text-gray-900">Search Prompts</h2>
+              <div className="mt-5">
+                <PromptSearch
+                  onSearch={(search) => loadPrompts(search)}
+                  onTagFilter={(tags) => loadPrompts(undefined, tags)}
+                />
+              </div>
+            </div>
+
+            <div className="border-t border-gray-200 pt-8">
+              <h2 className="text-lg font-medium text-gray-900">Your Prompts</h2>
+              <div className="mt-5">
+                <PromptList
+                  prompts={prompts}
+                  onEdit={setEditingPrompt}
+                  onDelete={handleDelete}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Layout>
+  );
+} 
+</code>
+
+src\styles\globals.css:
+<code>
+@tailwind base;
+@tailwind components;
+@tailwind utilities; 
+</code>
+
+src\types\index.ts:
+<code>
+export interface Prompt {
+  id: string;
+  name: string;
+  content: string;
+  tags: string[];
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  version: number;
+  is_deleted: boolean;
+}
+
+export interface Team {
+  id: string;
+  name: string;
+  created_by: string;
+  created_at: string;
+}
+
+export interface TeamMember {
+  team_id: string;
+  user_id: string;
+  role: 'admin' | 'editor' | 'viewer';
+} 
+</code>
+
