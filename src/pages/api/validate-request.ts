@@ -1,16 +1,15 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { verifyAuth } from '../../lib/supabaseAdmin';
-import { applyRateLimit, NextApiResponseWithRateLimit } from '../../lib/middleware';
+import { applyRateLimit } from '../../lib/middleware';
 
 export default async function handler(
     req: NextApiRequest,
-    res: NextApiResponseWithRateLimit
+    res: NextApiResponse
 ) {
-    try {
-        // Apply rate limiting
-        await applyRateLimit(req, res);
-    } catch {
-        return res.status(429).json({ error: 'Too many requests, please try again later' });
+    // Apply rate limiting
+    const rateLimitPassed = await applyRateLimit(req, res);
+    if (!rateLimitPassed) {
+        return; // Response already sent by applyRateLimit
     }
 
     if (req.method !== 'POST') {
