@@ -3,3 +3,18 @@ node_modules
 *.log
 .env.local
 .env
+
+# Tool specific folders/files
+.vibesync/
+.repomix-output.txt
+workflow.mdc
+.cursorrules
+cursor-tools.config.json
+.cursor-tools/
+
+# Temporary files
+fullcode.txt
+
+# OS generated files
+.DS_Store
+Thumbs.db

@@ -3,15 +3,17 @@ import React from 'react';
 interface PromptSearchProps {
   onSearch: (search: string) => void;
   onTagFilter: (tags: string[]) => void;
+  onResetPage?: () => void;
   isLoading?: boolean;
 }
 
-export const PromptSearch: React.FC<PromptSearchProps> = ({ onSearch, onTagFilter, isLoading }) => {
+export const PromptSearch: React.FC<PromptSearchProps> = ({ onSearch, onTagFilter, onResetPage, isLoading }) => {
   const [searchTerm, setSearchTerm] = React.useState('');
   const [tags, setTags] = React.useState('');
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
+    onResetPage?.();
     onSearch(searchTerm);
     onTagFilter(tags.split(',').map(tag => tag.trim()).filter(Boolean));
   };

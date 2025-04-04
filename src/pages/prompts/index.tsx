@@ -16,21 +16,32 @@ export default function PromptsPage() {
   const [showTagsDropdown, setShowTagsDropdown] = React.useState(false);
   const [selectedTag, setSelectedTag] = React.useState<string | null>(null);
 
+  // Add pagination state
+  const [currentPage, setCurrentPage] = React.useState(1);
+  const [pageSize] = React.useState(10);
+  const [totalPages, setTotalPages] = React.useState(1);
+  const [totalCount, setTotalCount] = React.useState(0);
+
   // Get unique tags from all prompts
   const uniqueTags = React.useMemo(() => {
     const tags = prompts.flatMap(prompt => prompt.tags);
     return Array.from(new Set(tags));
   }, [prompts]);
 
-  const loadPrompts = async (search?: string, tags?: string[]) => {
+  const loadPrompts = async (search?: string, tags?: string[], page = currentPage) => {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await promptsApi.list({ search, tags });
-      setPrompts(data);
+      const result = await promptsApi.list({ search, tags, page, pageSize });
+      setPrompts(result.data);
+      setTotalCount(result.totalCount);
+      setTotalPages(result.totalPages);
+      setCurrentPage(result.currentPage);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load prompts');
       setPrompts([]);
+      setTotalCount(0);
+      setTotalPages(1);
     } finally {
       setIsLoading(false);
     }
@@ -44,7 +55,7 @@ export default function PromptsPage() {
 
   React.useEffect(() => {
     loadPrompts();
-  }, []);
+  }, [currentPage]);
 
   const handleSubmit = async (data: Partial<Prompt>) => {
     setIsLoading(true);
@@ -110,6 +121,12 @@ export default function PromptsPage() {
       } finally {
         setIsLoading(false);
       }
+    }
+  };
+
+  const handlePageChange = (newPage: number) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+      setCurrentPage(newPage);
     }
   };
 
@@ -192,6 +209,7 @@ export default function PromptsPage() {
               <PromptSearch
                 onSearch={(search) => loadPrompts(search)}
                 onTagFilter={(tags) => loadPrompts(undefined, tags)}
+                onResetPage={() => setCurrentPage(1)}
                 isLoading={isLoading}
               />
             </div>
@@ -205,6 +223,35 @@ export default function PromptsPage() {
                 isLoading={isLoading}
               />
             </div>
+
+            {/* Add pagination controls */}
+            {totalPages > 1 && (
+              <div className="flex justify-center items-center gap-4 mt-8">
+                <button
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage <= 1 || isLoading}
+                  className="px-4 py-2 text-sm font-medium text-white bg-[#1C2333] rounded-md disabled:opacity-50 hover:bg-[#2C3444] transition-colors"
+                >
+                  Previous
+                </button>
+                
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-400">Page</span>
+                  <span className="px-3 py-1 text-sm text-white bg-[#1C2333] rounded-md">
+                    {currentPage} of {totalPages}
+                  </span>
+                  <span className="text-sm text-gray-400">({totalCount} total)</span>
+                </div>
+
+                <button
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage >= totalPages || isLoading}
+                  className="px-4 py-2 text-sm font-medium text-white bg-[#1C2333] rounded-md disabled:opacity-50 hover:bg-[#2C3444] transition-colors"
+                >
+                  Next
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
