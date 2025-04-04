@@ -1,170 +1,204 @@
 import { supabase } from '../lib/supabase';
 import type { Prompt } from '../types';
+import { createPromptSchema, updatePromptSchema, listOptionsSchema, idSchema } from '../lib/validation';
+import { ZodError } from 'zod';
 
-// Helper function to validate the request
-async function validateRequest() {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) throw new Error('Not authenticated');
-
-  const response = await fetch('/api/validate-request', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${session.access_token}`,
-      'Content-Type': 'application/json'
-    }
-  });
-
-  if (!response.ok) {
-    throw new Error('Request validation failed');
+// Helper function to get the current session
+async function getCurrentSession() {
+  const { data: { session }, error } = await supabase.auth.getSession();
+  if (error || !session) {
+    throw new Error('Not authenticated');
   }
-
   return session;
 }
 
 export const promptsApi = {
   async create(prompt: Omit<Prompt, 'id' | 'created_at' | 'updated_at' | 'is_deleted'>) {
-    // Validate the request server-side
-    const session = await validateRequest();
+    try {
+      // Validate input
+      const validatedPrompt = createPromptSchema.parse(prompt);
+      
+      // Get current session
+      const session = await getCurrentSession();
 
-    // Ensure the prompt is being created by the authenticated user
-    if (prompt.created_by !== session.user.id) {
-      throw new Error('Invalid user ID for prompt creation');
+      const { data: promptData, error: promptError } = await supabase
+        .from('prompts')
+        .insert([{
+          ...validatedPrompt,
+          created_by: session.user.id,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          is_deleted: false
+        }])
+        .select()
+        .single();
+
+      if (promptError) {
+        console.error('Error creating prompt:', promptError);
+        throw promptError;
+      }
+      
+      return promptData;
+    } catch (error) {
+      if (error instanceof ZodError) {
+        throw new Error(`Validation error: ${error.errors.map(e => e.message).join(', ')}`);
+      }
+      throw error;
     }
-
-    const { data: promptData, error: promptError } = await supabase
-      .from('prompts')
-      .insert([{
-        name: prompt.name,
-        content: prompt.content,
-        tags: prompt.tags || [],
-        created_by: session.user.id,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        is_deleted: false
-      }])
-      .select()
-      .single();
-
-    if (promptError) {
-      console.error('Error creating prompt:', promptError);
-      throw promptError;
-    }
-    
-    return promptData;
   },
 
   async getById(id: string) {
-    // Validate the request server-side
-    await validateRequest();
+    try {
+      // Validate ID format
+      const validatedId = idSchema.parse(id);
+      
+      // Get current session
+      const session = await getCurrentSession();
 
-    const { data, error } = await supabase
-      .from('prompts')
-      .select('*')
-      .eq('id', id)
-      .single();
+      const { data, error } = await supabase
+        .from('prompts')
+        .select('*')
+        .eq('id', validatedId)
+        .eq('created_by', session.user.id)
+        .single();
 
-    if (error) throw error;
-    return data;
+      if (error) {
+        if (error.code === 'PGRST116') {
+          throw new Error('Prompt not found or access denied');
+        }
+        throw error;
+      }
+      return data;
+    } catch (error) {
+      if (error instanceof ZodError) {
+        throw new Error(`Invalid ID format: ${error.errors[0].message}`);
+      }
+      throw error;
+    }
   },
 
   async update(id: string, updates: Partial<Prompt>) {
-    // Validate the request server-side
-    const session = await validateRequest();
+    try {
+      // Validate ID and updates
+      const validatedId = idSchema.parse(id);
+      const validatedUpdates = updatePromptSchema.parse(updates);
+      
+      // Get current session
+      const session = await getCurrentSession();
 
-    // First, get the current prompt to verify ownership
-    const { data: currentPrompt, error: fetchError } = await supabase
-      .from('prompts')
-      .select('*')
-      .eq('id', id)
-      .single();
+      // First, verify ownership
+      const { data: currentPrompt, error: fetchError } = await supabase
+        .from('prompts')
+        .select('*')
+        .eq('id', validatedId)
+        .eq('created_by', session.user.id)
+        .single();
 
-    if (fetchError) throw fetchError;
-    if (!currentPrompt) throw new Error('Prompt not found');
+      if (fetchError) {
+        if (fetchError.code === 'PGRST116') {
+          throw new Error('Prompt not found or access denied');
+        }
+        throw fetchError;
+      }
 
-    // Verify ownership
-    if (currentPrompt.created_by !== session.user.id) {
-      throw new Error('Not authorized to edit this prompt');
+      // Proceed with update
+      const { data, error } = await supabase
+        .from('prompts')
+        .update({
+          ...validatedUpdates,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', validatedId)
+        .eq('created_by', session.user.id) // Double-check ownership
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      if (error instanceof ZodError) {
+        throw new Error(`Validation error: ${error.errors.map(e => e.message).join(', ')}`);
+      }
+      throw error;
     }
-
-    // Proceed with update
-    const { data, error } = await supabase
-      .from('prompts')
-      .update({
-        ...updates,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
   },
 
   async delete(id: string) {
-    // Validate the request server-side
-    const session = await validateRequest();
+    try {
+      // Validate ID
+      const validatedId = idSchema.parse(id);
+      
+      // Get current session
+      const session = await getCurrentSession();
 
-    // First, get the current prompt to verify ownership
-    const { data: currentPrompt, error: fetchError } = await supabase
-      .from('prompts')
-      .select('*')
-      .eq('id', id)
-      .single();
+      // Soft delete with ownership check
+      const { error } = await supabase
+        .from('prompts')
+        .update({ 
+          is_deleted: true,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', validatedId)
+        .eq('created_by', session.user.id);
 
-    if (fetchError) throw fetchError;
-    if (!currentPrompt) throw new Error('Prompt not found');
-
-    // Verify ownership
-    if (currentPrompt.created_by !== session.user.id) {
-      throw new Error('Not authorized to delete this prompt');
+      if (error) {
+        if (error.code === 'PGRST116') {
+          throw new Error('Prompt not found or access denied');
+        }
+        throw error;
+      }
+    } catch (error) {
+      if (error instanceof ZodError) {
+        throw new Error(`Invalid ID format: ${error.errors[0].message}`);
+      }
+      throw error;
     }
-
-    const { error } = await supabase
-      .from('prompts')
-      .update({ 
-        is_deleted: true,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', id);
-
-    if (error) throw error;
   },
 
   async list(options: { tags?: string[]; search?: string; page?: number; pageSize?: number } = {}) {
-    // Validate the request server-side
-    const session = await validateRequest();
+    try {
+      // Validate options
+      const validatedOptions = listOptionsSchema.parse(options);
+      
+      // Get current session
+      const session = await getCurrentSession();
 
-    const page = options.page || 1;
-    const pageSize = options.pageSize || 10;
-    const start = (page - 1) * pageSize;
-    const end = start + pageSize - 1;
+      const page = validatedOptions.page || 1;
+      const pageSize = validatedOptions.pageSize || 10;
+      const start = (page - 1) * pageSize;
+      const end = start + pageSize - 1;
 
-    let query = supabase
-      .from('prompts')
-      .select('*', { count: 'exact' })
-      .eq('is_deleted', false)
-      .eq('created_by', session.user.id) // Only fetch user's own prompts
-      .order('created_at', { ascending: false })
-      .range(start, end);
+      let query = supabase
+        .from('prompts')
+        .select('*', { count: 'exact' })
+        .eq('is_deleted', false)
+        .eq('created_by', session.user.id)
+        .order('created_at', { ascending: false })
+        .range(start, end);
 
-    if (options.tags?.length) {
-      query = query.contains('tags', options.tags);
+      if (validatedOptions.tags?.length) {
+        query = query.contains('tags', validatedOptions.tags);
+      }
+
+      if (validatedOptions.search) {
+        query = query.ilike('name', `%${validatedOptions.search}%`);
+      }
+
+      const { data, error, count } = await query;
+      if (error) throw error;
+      
+      return {
+        data: data || [],
+        totalCount: count || 0,
+        currentPage: page,
+        pageSize,
+        totalPages: Math.ceil((count || 0) / pageSize)
+      };
+    } catch (error) {
+      if (error instanceof ZodError) {
+        throw new Error(`Validation error: ${error.errors.map(e => e.message).join(', ')}`);
+      }
+      throw error;
     }
-
-    if (options.search) {
-      query = query.ilike('name', `%${options.search}%`);
-    }
-
-    const { data, error, count } = await query;
-    if (error) throw error;
-    
-    return {
-      data: data || [],
-      totalCount: count || 0,
-      currentPage: page,
-      pageSize,
-      totalPages: Math.ceil((count || 0) / pageSize)
-    };
   }
 }; 
