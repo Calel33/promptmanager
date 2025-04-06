@@ -1,6 +1,6 @@
 import { supabase } from '../lib/supabase';
 import type { Prompt } from '../types';
-import { createPromptSchema, updatePromptSchema, listOptionsSchema, idSchema } from '../lib/validation';
+import { createPromptSchema, updatePromptSchema, listOptionsSchema, idSchema, bulkPromptSchema } from '../lib/validation';
 import { ZodError } from 'zod';
 
 // Helper function to get the current session
@@ -39,6 +39,47 @@ export const promptsApi = {
       }
       
       return promptData;
+    } catch (error) {
+      if (error instanceof ZodError) {
+        throw new Error(`Validation error: ${error.errors.map(e => e.message).join(', ')}`);
+      }
+      throw error;
+    }
+  },
+
+  async createBulk(prompts: Array<Omit<Prompt, 'id' | 'created_at' | 'updated_at' | 'is_deleted'>>) {
+    try {
+      // Validate input
+      const validatedPrompts = bulkPromptSchema.parse(prompts);
+      
+      // Get current session
+      const session = await getCurrentSession();
+
+      // Prepare prompts with metadata
+      const promptsToCreate = validatedPrompts.map(prompt => ({
+        ...prompt,
+        created_by: session.user.id,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        is_deleted: false
+      }));
+
+      // Use Supabase's bulk insert
+      const { data: promptData, error: promptError } = await supabase
+        .from('prompts')
+        .insert(promptsToCreate)
+        .select();
+
+      if (promptError) {
+        console.error('Error creating prompts:', promptError);
+        throw promptError;
+      }
+      
+      return {
+        success: true,
+        data: promptData,
+        count: promptData?.length || 0
+      };
     } catch (error) {
       if (error instanceof ZodError) {
         throw new Error(`Validation error: ${error.errors.map(e => e.message).join(', ')}`);

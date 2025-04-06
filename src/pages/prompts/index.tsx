@@ -4,6 +4,7 @@ import { Layout } from '../../components/layout/Layout';
 import { PromptForm } from '../../components/prompts/PromptForm';
 import { PromptList } from '../../components/prompts/PromptList';
 import { PromptSearch } from '../../components/prompts/PromptSearch';
+import { BulkPromptUpload } from '../../components/prompts/BulkPromptUpload';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Prompt } from '../../types';
 
@@ -55,7 +56,7 @@ export default function PromptsPage() {
 
   React.useEffect(() => {
     loadPrompts();
-  }, [currentPage]);
+  }, []); // Only load on mount
 
   const handleSubmit = async (data: Partial<Prompt>) => {
     setIsLoading(true);
@@ -124,9 +125,45 @@ export default function PromptsPage() {
     }
   };
 
-  const handlePageChange = (newPage: number) => {
-    if (newPage >= 1 && newPage <= totalPages) {
-      setCurrentPage(newPage);
+  const handlePageChange = async (newPage: number) => {
+    if (newPage >= 1 && newPage <= totalPages && !isLoading) {
+      try {
+        await loadPrompts(undefined, undefined, newPage);
+        // Scroll after data is loaded
+        setTimeout(() => {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }, 0);
+      } catch (error) {
+        console.error('Error changing page:', error);
+      }
+    }
+  };
+
+  const handleBulkUpload = async (prompts: Array<Partial<Prompt>>) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      if (!user) {
+        throw new Error('You must be logged in to create prompts');
+      }
+
+      const promptsData = prompts.map(prompt => ({
+        name: prompt.name!,
+        content: prompt.content!,
+        tags: prompt.tags || [],
+        created_by: user.id
+      }));
+
+      const result = await promptsApi.createBulk(promptsData);
+      await loadPrompts();
+      
+      // Show success message
+      alert(`Successfully imported ${result.count} prompts`);
+    } catch (err) {
+      console.error('Bulk upload error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to upload prompts');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -177,16 +214,22 @@ export default function PromptsPage() {
                   </div>
                 )}
               </div>
-              <button
-                onClick={() => setShowCreateForm(true)}
-                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-black bg-white hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-white"
-              >
-                + Create New Prompt
-              </button>
+              <div className="flex flex-col sm:flex-row items-center gap-4">
+                <BulkPromptUpload
+                  onUpload={handleBulkUpload}
+                  isLoading={isLoading}
+                />
+                <button
+                  onClick={() => setShowCreateForm(true)}
+                  className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-black bg-white hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-white w-full sm:w-auto"
+                >
+                  + Create New Prompt
+                </button>
+              </div>
             </div>
           </div>
 
-          <div className="py-4">
+          <div className="py-4 prompts-content">
             {error && (
               <div className="rounded-md bg-red-900 bg-opacity-50 p-4 mb-4">
                 <div className="flex">

@@ -18,6 +18,11 @@ export const createPromptSchema = z.object({
   ...basePromptSchema,
 });
 
+// Schema for bulk prompt creation
+export const bulkPromptSchema = z.array(createPromptSchema)
+  .min(1, 'At least one prompt is required')
+  .max(50, 'Maximum 50 prompts can be created at once');
+
 // Schema for updating an existing prompt
 export const updatePromptSchema = z.object({
   ...basePromptSchema,
