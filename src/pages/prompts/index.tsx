@@ -6,6 +6,7 @@ import { PromptList } from '../../components/prompts/PromptList';
 import { PromptSearch } from '../../components/prompts/PromptSearch';
 import { BulkPromptUpload } from '../../components/prompts/BulkPromptUpload';
 import { useAuth } from '../../contexts/AuthContext';
+import { useCopilotReadable, useCopilotAction } from "@copilotkit/react-core";
 import type { Prompt } from '../../types';
 
 export default function PromptsPage() {
@@ -28,6 +29,134 @@ export default function PromptsPage() {
     const tags = prompts.flatMap(prompt => prompt.tags);
     return Array.from(new Set(tags));
   }, [prompts]);
+
+  // Make application state readable by CopilotKit
+  useCopilotReadable({
+    description: "Current state of the Prompt Manager application",
+    value: {
+      prompts: {
+        items: prompts,
+        total: totalCount,
+        currentPage,
+        totalPages,
+        pageSize,
+        uniqueTags,
+        selectedTag
+      },
+      user: {
+        id: user?.id,
+        email: user?.email,
+        isAuthenticated: !!user
+      },
+      ui: {
+        isLoading,
+        error: error || undefined,
+        showCreateForm,
+        showTagsDropdown
+      }
+    }
+  });
+
+  // Define AI actions for prompt management
+  useCopilotAction({
+    name: "search-prompts",
+    description: "Search for prompts by name or content",
+    parameters: [
+      {
+        name: "searchTerm",
+        type: "string",
+        description: "The text to search for in prompt names and content"
+      },
+      {
+        name: "tags",
+        type: "string[]",
+        description: "Optional array of tags to filter by"
+      }
+    ],
+    handler: async ({ searchTerm, tags }) => {
+      await loadPrompts(searchTerm, Array.isArray(tags) ? tags : []);
+      return { success: true, message: "Search completed" };
+    }
+  });
+
+  useCopilotAction({
+    name: "create-prompt",
+    description: "Create a new prompt",
+    parameters: [
+      {
+        name: "name",
+        type: "string",
+        description: "Name of the prompt"
+      },
+      {
+        name: "content",
+        type: "string",
+        description: "Content of the prompt"
+      },
+      {
+        name: "tags",
+        type: "string[]",
+        description: "Array of tags for the prompt"
+      }
+    ],
+    handler: async ({ name, content, tags }) => {
+      await handleSubmit({ 
+        name: String(name), 
+        content: String(content), 
+        tags: Array.isArray(tags) ? tags : [] 
+      });
+      return { success: true, message: "Prompt created successfully" };
+    }
+  });
+
+  useCopilotAction({
+    name: "delete-prompt",
+    description: "Delete a prompt by ID",
+    parameters: [
+      {
+        name: "promptId",
+        type: "string",
+        description: "ID of the prompt to delete"
+      }
+    ],
+    handler: async ({ promptId }) => {
+      await handleDelete(String(promptId));
+      return { success: true, message: "Prompt deleted successfully" };
+    }
+  });
+
+  useCopilotAction({
+    name: "change-page",
+    description: "Navigate to a different page of prompts",
+    parameters: [
+      {
+        name: "pageNumber",
+        type: "number",
+        description: "Page number to navigate to"
+      }
+    ],
+    handler: async ({ pageNumber }) => {
+      await handlePageChange(Number(pageNumber));
+      return { success: true, message: `Navigated to page ${pageNumber}` };
+    }
+  });
+
+  useCopilotAction({
+    name: "filter-by-tag",
+    description: "Filter prompts by a specific tag",
+    parameters: [
+      {
+        name: "tag",
+        type: "string",
+        description: "Tag to filter by, or null to show all prompts"
+      }
+    ],
+    handler: async ({ tag }) => {
+      setSelectedTag(tag || null);
+      setShowTagsDropdown(false);
+      return { success: true, message: tag ? `Filtered by tag: ${tag}` : "Showing all prompts" };
+    }
+  });
 
   const loadPrompts = async (search?: string, tags?: string[], page = currentPage) => {
     setIsLoading(true);
