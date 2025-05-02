@@ -4,7 +4,9 @@ import { Layout } from '../../components/layout/Layout';
 import { PromptForm } from '../../components/prompts/PromptForm';
 import { PromptList } from '../../components/prompts/PromptList';
 import { PromptSearch } from '../../components/prompts/PromptSearch';
+import { BulkPromptUpload } from '../../components/prompts/BulkPromptUpload';
 import { useAuth } from '../../contexts/AuthContext';
+import { useCopilotReadable, useCopilotAction } from "@copilotkit/react-core";
 import type { Prompt } from '../../types';
 
 export default function PromptsPage() {
@@ -27,6 +29,134 @@ export default function PromptsPage() {
     const tags = prompts.flatMap(prompt => prompt.tags);
     return Array.from(new Set(tags));
   }, [prompts]);
+
+  // Make application state readable by CopilotKit
+  useCopilotReadable({
+    description: "Current state of the Prompt Manager application",
+    value: {
+      prompts: {
+        items: prompts,
+        total: totalCount,
+        currentPage,
+        totalPages,
+        pageSize,
+        uniqueTags,
+        selectedTag
+      },
+      user: {
+        id: user?.id,
+        email: user?.email,
+        isAuthenticated: !!user
+      },
+      ui: {
+        isLoading,
+        error: error || undefined,
+        showCreateForm,
+        showTagsDropdown
+      }
+    }
+  });
+
+  // Define AI actions for prompt management
+  useCopilotAction({
+    name: "search-prompts",
+    description: "Search for prompts by name or content",
+    parameters: [
+      {
+        name: "searchTerm",
+        type: "string",
+        description: "The text to search for in prompt names and content"
+      },
+      {
+        name: "tags",
+        type: "string[]",
+        description: "Optional array of tags to filter by"
+      }
+    ],
+    handler: async ({ searchTerm, tags }) => {
+      await loadPrompts(searchTerm, Array.isArray(tags) ? tags : []);
+      return { success: true, message: "Search completed" };
+    }
+  });
+
+  useCopilotAction({
+    name: "create-prompt",
+    description: "Create a new prompt",
+    parameters: [
+      {
+        name: "name",
+        type: "string",
+        description: "Name of the prompt"
+      },
+      {
+        name: "content",
+        type: "string",
+        description: "Content of the prompt"
+      },
+      {
+        name: "tags",
+        type: "string[]",
+        description: "Array of tags for the prompt"
+      }
+    ],
+    handler: async ({ name, content, tags }) => {
+      await handleSubmit({ 
+        name: String(name), 
+        content: String(content), 
+        tags: Array.isArray(tags) ? tags : [] 
+      });
+      return { success: true, message: "Prompt created successfully" };
+    }
+  });
+
+  useCopilotAction({
+    name: "delete-prompt",
+    description: "Delete a prompt by ID",
+    parameters: [
+      {
+        name: "promptId",
+        type: "string",
+        description: "ID of the prompt to delete"
+      }
+    ],
+    handler: async ({ promptId }) => {
+      await handleDelete(String(promptId));
+      return { success: true, message: "Prompt deleted successfully" };
+    }
+  });
+
+  useCopilotAction({
+    name: "change-page",
+    description: "Navigate to a different page of prompts",
+    parameters: [
+      {
+        name: "pageNumber",
+        type: "number",
+        description: "Page number to navigate to"
+      }
+    ],
+    handler: async ({ pageNumber }) => {
+      await handlePageChange(Number(pageNumber));
+      return { success: true, message: `Navigated to page ${pageNumber}` };
+    }
+  });
+
+  useCopilotAction({
+    name: "filter-by-tag",
+    description: "Filter prompts by a specific tag",
+    parameters: [
+      {
+        name: "tag",
+        type: "string",
+        description: "Tag to filter by, or null to show all prompts"
+      }
+    ],
+    handler: async ({ tag }) => {
+      setSelectedTag(tag || null);
+      setShowTagsDropdown(false);
+      return { success: true, message: tag ? `Filtered by tag: ${tag}` : "Showing all prompts" };
+    }
+  });
 
   const loadPrompts = async (search?: string, tags?: string[], page = currentPage) => {
     setIsLoading(true);
@@ -55,7 +185,7 @@ export default function PromptsPage() {
 
   React.useEffect(() => {
     loadPrompts();
-  }, [currentPage]);
+  }, []); // Only load on mount
 
   const handleSubmit = async (data: Partial<Prompt>) => {
     setIsLoading(true);
@@ -124,9 +254,45 @@ export default function PromptsPage() {
     }
   };
 
-  const handlePageChange = (newPage: number) => {
-    if (newPage >= 1 && newPage <= totalPages) {
-      setCurrentPage(newPage);
+  const handlePageChange = async (newPage: number) => {
+    if (newPage >= 1 && newPage <= totalPages && !isLoading) {
+      try {
+        await loadPrompts(undefined, undefined, newPage);
+        // Scroll after data is loaded
+        setTimeout(() => {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }, 0);
+      } catch (error) {
+        console.error('Error changing page:', error);
+      }
+    }
+  };
+
+  const handleBulkUpload = async (prompts: Array<Partial<Prompt>>) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      if (!user) {
+        throw new Error('You must be logged in to create prompts');
+      }
+
+      const promptsData = prompts.map(prompt => ({
+        name: prompt.name!,
+        content: prompt.content!,
+        tags: prompt.tags || [],
+        created_by: user.id
+      }));
+
+      const result = await promptsApi.createBulk(promptsData);
+      await loadPrompts();
+      
+      // Show success message
+      alert(`Successfully imported ${result.count} prompts`);
+    } catch (err) {
+      console.error('Bulk upload error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to upload prompts');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -177,16 +343,22 @@ export default function PromptsPage() {
                   </div>
                 )}
               </div>
-              <button
-                onClick={() => setShowCreateForm(true)}
-                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-black bg-white hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-white"
-              >
-                + Create New Prompt
-              </button>
+              <div className="flex flex-col sm:flex-row items-center gap-4">
+                <BulkPromptUpload
+                  onUpload={handleBulkUpload}
+                  isLoading={isLoading}
+                />
+                <button
+                  onClick={() => setShowCreateForm(true)}
+                  className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-black bg-white hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-white w-full sm:w-auto"
+                >
+                  + Create New Prompt
+                </button>
+              </div>
             </div>
           </div>
 
-          <div className="py-4">
+          <div className="py-4 prompts-content">
             {error && (
               <div className="rounded-md bg-red-900 bg-opacity-50 p-4 mb-4">
                 <div className="flex">

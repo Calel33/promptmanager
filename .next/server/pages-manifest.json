@@ -2,6 +2,6 @@
   "/_app": "pages/_app.js",
   "/_error": "pages/_error.js",
   "/_document": "pages/_document.js",
-  "/prompts": "pages/prompts.js",
-  "/api/validate-request": "pages/api/validate-request.js"
+  "/auth/login": "pages/auth/login.js",
+  "/prompts": "pages/prompts.js"
 }

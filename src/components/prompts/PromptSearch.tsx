@@ -1,4 +1,5 @@
 import React from 'react';
+import { useCopilotReadable, useCopilotAction } from "@copilotkit/react-core";
 
 interface PromptSearchProps {
   onSearch: (search: string) => void;
@@ -10,6 +11,70 @@ interface PromptSearchProps {
 export const PromptSearch: React.FC<PromptSearchProps> = ({ onSearch, onTagFilter, onResetPage, isLoading }) => {
   const [searchTerm, setSearchTerm] = React.useState('');
   const [tags, setTags] = React.useState('');
+
+  // Make search state readable by CopilotKit
+  useCopilotReadable({
+    description: "Current state of prompt search and filters",
+    value: {
+      search: {
+        term: searchTerm,
+        tags: tags.split(',').map(tag => tag.trim()).filter(Boolean),
+        isLoading
+      }
+    }
+  });
+
+  // Define search actions for the AI
+  useCopilotAction({
+    name: "set-search-term",
+    description: "Set the search term for prompts",
+    parameters: [
+      {
+        name: "term",
+        type: "string",
+        description: "Search term to look for in prompts"
+      }
+    ],
+    handler: async ({ term }) => {
+      setSearchTerm(String(term));
+      onResetPage?.();
+      onSearch(String(term));
+      return { success: true, message: `Set search term to: ${term}` };
+    }
+  });
+
+  useCopilotAction({
+    name: "set-tag-filters",
+    description: "Set tag filters for prompts",
+    parameters: [
+      {
+        name: "tagList",
+        type: "string",
+        description: "Comma-separated list of tags to filter by"
+      }
+    ],
+    handler: async ({ tagList }) => {
+      const newTags = String(tagList);
+      setTags(newTags);
+      onResetPage?.();
+      onTagFilter(newTags.split(',').map(tag => tag.trim()).filter(Boolean));
+      return { success: true, message: `Set tag filters to: ${tagList}` };
+    }
+  });
+
+  useCopilotAction({
+    name: "clear-search",
+    description: "Clear all search filters",
+    parameters: [],
+    handler: async () => {
+      setSearchTerm('');
+      setTags('');
+      onResetPage?.();
+      onSearch('');
+      onTagFilter([]);
+      return { success: true, message: "Cleared all search filters" };
+    }
+  });
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();

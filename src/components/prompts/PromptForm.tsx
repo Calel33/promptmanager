@@ -1,5 +1,6 @@
 import React from 'react';
 import { Prompt } from '../../types';
+import { useCopilotReadable, useCopilotAction } from "@copilotkit/react-core";
 
 interface PromptFormProps {
   initialData?: Partial<Prompt>;
@@ -15,6 +16,111 @@ export const PromptForm: React.FC<PromptFormProps> = ({ initialData, onSubmit, i
     tags: initialData?.tags || [],
   });
   const [currentTag, setCurrentTag] = React.useState('');
+
+  // Make form state readable by CopilotKit
+  useCopilotReadable({
+    description: "Current state of the prompt form",
+    value: {
+      form: {
+        ...formData,
+        isEditing: !!initialData,
+        currentTag,
+        isLoading
+      }
+    }
+  });
+
+  // Define form actions for the AI
+  useCopilotAction({
+    name: "update-form-field",
+    description: "Update a field in the prompt form",
+    parameters: [
+      {
+        name: "field",
+        type: "string",
+        description: "Field to update (name or content)"
+      },
+      {
+        name: "value",
+        type: "string",
+        description: "New value for the field"
+      }
+    ],
+    handler: async ({ field, value }) => {
+      if (field === 'name' || field === 'content') {
+        setFormData(prev => ({ ...prev, [field]: value }));
+        return { success: true, message: `Updated ${field} field` };
+      }
+      return { success: false, message: "Invalid field name" };
+    }
+  });
+
+  useCopilotAction({
+    name: "add-tag",
+    description: "Add a new tag to the prompt",
+    parameters: [
+      {
+        name: "tag",
+        type: "string",
+        description: "Tag to add"
+      }
+    ],
+    handler: async ({ tag }) => {
+      const trimmedTag = String(tag).trim();
+      if (trimmedTag && !formData.tags.includes(trimmedTag)) {
+        setFormData(prev => ({
+          ...prev,
+          tags: [...prev.tags, trimmedTag]
+        }));
+        setCurrentTag('');
+        return { success: true, message: `Added tag: ${trimmedTag}` };
+      }
+      return { success: false, message: "Tag is empty or already exists" };
+    }
+  });
+
+  useCopilotAction({
+    name: "remove-tag",
+    description: "Remove a tag from the prompt",
+    parameters: [
+      {
+        name: "tag",
+        type: "string",
+        description: "Tag to remove"
+      }
+    ],
+    handler: async ({ tag }) => {
+      const tagToRemove = String(tag);
+      if (formData.tags.includes(tagToRemove)) {
+        setFormData(prev => ({
+          ...prev,
+          tags: prev.tags.filter(t => t !== tagToRemove)
+        }));
+        return { success: true, message: `Removed tag: ${tagToRemove}` };
+      }
+      return { success: false, message: "Tag not found" };
+    }
+  });
+
+  useCopilotAction({
+    name: "submit-form",
+    description: "Submit the prompt form",
+    parameters: [],
+    handler: async () => {
+      if (!formData.name || !formData.content) {
+        return { success: false, message: "Name and content are required" };
+      }
+      try {
+        await onSubmit(formData);
+        if (!initialData) {
+          resetForm();
+        }
+        return { success: true, message: "Form submitted successfully" };
+      } catch (error) {
+        return { success: false, message: "Failed to submit form" };
+      }
+    }
+  });
 
   // Reset form when initialData changes (e.g., when switching between create/edit modes)
   React.useEffect(() => {

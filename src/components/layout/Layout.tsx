@@ -1,6 +1,7 @@
 import React from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { ProtectedRoute } from '../auth/ProtectedRoute';
+import { CopilotPopup } from "@copilotkit/react-ui";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -33,6 +34,14 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         </nav>
 
         {children}
+
+        <CopilotPopup
+          instructions="You are a helpful AI assistant for the Prompt Manager application. Help users manage their prompts, understand the application features, and provide guidance on best practices for prompt engineering."
+          labels={{
+            title: "Prompt Manager Assistant",
+            initial: "👋 Hi! I'm your Prompt Manager assistant. I can help you:\n\n- Create and manage prompts\n- Use prompt templates effectively\n- Understand best practices\n- Navigate the application\n\nHow can I assist you today?"
+          }}
+        />
       </div>
     </ProtectedRoute>
   );
