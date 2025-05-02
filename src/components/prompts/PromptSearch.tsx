@@ -11,6 +11,14 @@ export const PromptSearch: React.FC<PromptSearchProps> = ({ onSearch, onResetPag
   const [searchTerm, setSearchTerm] = React.useState('');
   const [tags, setTags] = React.useState('');
 
+  // Function to perform the clearing logic
+  const performClearSearch = () => {
+    setSearchTerm('');
+    setTags('');
+    onResetPage?.(); // Reset pagination state if available
+    onSearch('', []); // Trigger search with empty values
+  };
+
   // Make search state readable by CopilotKit
   useCopilotReadable({
     description: "Current state of prompt search and filters",
@@ -66,10 +74,7 @@ export const PromptSearch: React.FC<PromptSearchProps> = ({ onSearch, onResetPag
     description: "Clear all search filters",
     parameters: [],
     handler: async () => {
-      setSearchTerm('');
-      setTags('');
-      onResetPage?.();
-      onSearch('', []);
+      performClearSearch(); // Reuse the clearing logic
       return { success: true, message: "Cleared all search filters" };
     }
   });
@@ -85,7 +90,9 @@ export const PromptSearch: React.FC<PromptSearchProps> = ({ onSearch, onResetPag
     <form onSubmit={handleSearch} className="w-full">
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="flex-1">
+          <label htmlFor="prompt-search" className="sr-only">Search prompts</label>
           <input
+            id="prompt-search"
             type="text"
             placeholder="Search prompts..."
             value={searchTerm}
@@ -95,7 +102,9 @@ export const PromptSearch: React.FC<PromptSearchProps> = ({ onSearch, onResetPag
           />
         </div>
         <div className="flex-1">
+          <label htmlFor="prompt-tags" className="sr-only">Filter by tags</label>
           <input
+            id="prompt-tags"
             type="text"
             placeholder="Filter by tags (comma separated)"
             value={tags}
@@ -104,23 +113,36 @@ export const PromptSearch: React.FC<PromptSearchProps> = ({ onSearch, onResetPag
             disabled={isLoading}
           />
         </div>
-        <button
-          type="submit"
-          className="w-full sm:w-auto px-6 py-2 bg-[#6366F1] text-white rounded-md hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 transition-colors"
-          disabled={isLoading}
-        >
-          {isLoading ? (
-            <div className="flex items-center justify-center">
-              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              <span>Searching...</span>
-            </div>
-          ) : (
-            'Search'
-          )}
-        </button>
+        <div className="flex gap-2">
+          {/* Clear Button */}
+          <button
+            type="button" // Use type="button" to prevent form submission
+            onClick={performClearSearch}
+            className="w-full sm:w-auto px-6 py-2 text-sm font-medium rounded-md bg-[#1F1F1F] text-gray-300 hover:bg-[#2C3444] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 disabled:opacity-50 transition-colors"
+            disabled={isLoading}
+            aria-label="Clear search filters"
+          >
+            Clear
+          </button>
+          {/* Search Button */}
+          <button
+            type="submit"
+            className="w-full sm:w-auto px-6 py-2 bg-[#6366F1] text-white rounded-md hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 transition-colors"
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <div className="flex items-center justify-center">
+                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>Searching...</span>
+              </div>
+            ) : (
+              'Search'
+            )}
+          </button>
+        </div>
       </div>
     </form>
   );
