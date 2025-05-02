@@ -379,8 +379,7 @@ export default function PromptsPage() {
 
             <div className="mb-4">
               <PromptSearch
-                onSearch={(search) => loadPrompts(search)}
-                onTagFilter={(tags) => loadPrompts(undefined, tags)}
+                onSearch={async (search, tags) => await loadPrompts(search, tags)}
                 onResetPage={() => setCurrentPage(1)}
                 isLoading={isLoading}
               />

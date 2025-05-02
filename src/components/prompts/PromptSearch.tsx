@@ -2,13 +2,12 @@ import React from 'react';
 import { useCopilotReadable, useCopilotAction } from "@copilotkit/react-core";
 
 interface PromptSearchProps {
-  onSearch: (search: string) => void;
-  onTagFilter: (tags: string[]) => void;
+  onSearch: (search: string, tags: string[]) => void;
   onResetPage?: () => void;
   isLoading?: boolean;
 }
 
-export const PromptSearch: React.FC<PromptSearchProps> = ({ onSearch, onTagFilter, onResetPage, isLoading }) => {
+export const PromptSearch: React.FC<PromptSearchProps> = ({ onSearch, onResetPage, isLoading }) => {
   const [searchTerm, setSearchTerm] = React.useState('');
   const [tags, setTags] = React.useState('');
 
@@ -38,7 +37,7 @@ export const PromptSearch: React.FC<PromptSearchProps> = ({ onSearch, onTagFilte
     handler: async ({ term }) => {
       setSearchTerm(String(term));
       onResetPage?.();
-      onSearch(String(term));
+      onSearch(String(term), tags.split(',').map(tag => tag.trim()).filter(Boolean));
       return { success: true, message: `Set search term to: ${term}` };
     }
   });
@@ -57,7 +56,7 @@ export const PromptSearch: React.FC<PromptSearchProps> = ({ onSearch, onTagFilte
       const newTags = String(tagList);
       setTags(newTags);
       onResetPage?.();
-      onTagFilter(newTags.split(',').map(tag => tag.trim()).filter(Boolean));
+      onSearch(searchTerm, newTags.split(',').map(tag => tag.trim()).filter(Boolean));
       return { success: true, message: `Set tag filters to: ${tagList}` };
     }
   });
@@ -70,8 +69,7 @@ export const PromptSearch: React.FC<PromptSearchProps> = ({ onSearch, onTagFilte
       setSearchTerm('');
       setTags('');
       onResetPage?.();
-      onSearch('');
-      onTagFilter([]);
+      onSearch('', []);
       return { success: true, message: "Cleared all search filters" };
     }
   });
@@ -79,8 +77,8 @@ export const PromptSearch: React.FC<PromptSearchProps> = ({ onSearch, onTagFilte
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     onResetPage?.();
-    onSearch(searchTerm);
-    onTagFilter(tags.split(',').map(tag => tag.trim()).filter(Boolean));
+    const processedTags = tags.split(',').map(tag => tag.trim()).filter(Boolean);
+    onSearch(searchTerm, processedTags);
   };
 
   return (
