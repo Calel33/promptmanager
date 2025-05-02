@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { ProtectedRoute } from '../auth/ProtectedRoute';
 import { CopilotPopup } from "@copilotkit/react-ui";
@@ -9,6 +9,18 @@ interface LayoutProps {
 
 export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { signOut } = useAuth();
+  const [isSigningOut, setIsSigningOut] = useState(false);
+
+  const handleSignOut = async () => {
+    try {
+      setIsSigningOut(true);
+      await signOut();
+    } catch (error) {
+      console.error('Failed to sign out:', error);
+    } finally {
+      setIsSigningOut(false);
+    }
+  };
 
   return (
     <ProtectedRoute>
@@ -23,10 +35,11 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
               </div>
               <div className="flex items-center">
                 <button
-                  onClick={signOut}
-                  className="inline-flex items-center px-4 py-2 border border-transparent rounded-md text-sm font-medium text-white bg-[#6366F1] hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+                  onClick={handleSignOut}
+                  disabled={isSigningOut}
+                  className="inline-flex items-center px-4 py-2 border border-transparent rounded-md text-sm font-medium text-white bg-[#6366F1] hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Sign Out
+                  {isSigningOut ? 'Signing Out...' : 'Sign Out'}
                 </button>
               </div>
             </div>

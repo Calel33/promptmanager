@@ -206,12 +206,47 @@ export const promptsApi = {
 
       const page = validatedOptions.page || 1;
       const pageSize = validatedOptions.pageSize || 10;
-      const start = (page - 1) * pageSize;
-      const end = start + pageSize - 1;
+
+      // First, get the total count
+      let countQuery = supabase
+        .from('prompts')
+        .select('id', { count: 'exact' })
+        .eq('is_deleted', false)
+        .eq('created_by', session.user.id);
+
+      if (validatedOptions.tags?.length) {
+        countQuery = countQuery.contains('tags', validatedOptions.tags);
+      }
+
+      if (validatedOptions.search) {
+        countQuery = countQuery.ilike('name', `%${validatedOptions.search}%`);
+      }
+
+      const { count, error: countError } = await countQuery;
+      if (countError) throw countError;
+
+      const totalCount = count || 0;
+      const totalPages = Math.ceil(totalCount / pageSize);
+      
+      // Adjust page number if it exceeds total pages
+      const adjustedPage = Math.min(Math.max(1, page), Math.max(1, totalPages));
+      const start = (adjustedPage - 1) * pageSize;
+      const end = Math.min(start + pageSize - 1, totalCount - 1);
+
+      // If there's no data, return empty result
+      if (totalCount === 0) {
+        return {
+          data: [],
+          totalCount: 0,
+          currentPage: 1,
+          pageSize,
+          totalPages: 0
+        };
+      }
 
       let query = supabase
         .from('prompts')
-        .select('*', { count: 'exact' })
+        .select('*')
         .eq('is_deleted', false)
         .eq('created_by', session.user.id)
         .order('created_at', { ascending: false })
@@ -225,15 +260,15 @@ export const promptsApi = {
         query = query.ilike('name', `%${validatedOptions.search}%`);
       }
 
-      const { data, error, count } = await query;
+      const { data, error } = await query;
       if (error) throw error;
       
       return {
         data: data || [],
-        totalCount: count || 0,
-        currentPage: page,
+        totalCount,
+        currentPage: adjustedPage,
         pageSize,
-        totalPages: Math.ceil((count || 0) / pageSize)
+        totalPages
       };
     } catch (error) {
       if (error instanceof ZodError) {
